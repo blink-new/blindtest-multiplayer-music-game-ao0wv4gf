@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { Room, Player, GameState, MusicCategory, Song, Answer } from '../types/game';
+import { Room, Player, GameState, MusicCategory, Answer } from '../types/game';
+import { allPlaylists } from '../playlists';
+import { searchDeezer } from '../lib/deezer';
 
 interface GameContextType {
   room: Room | null;
@@ -51,26 +53,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return state;
   }
 };
-
-// Mock data for development
-const mockSongs: Song[] = [
-  {
-    id: '1',
-    title: 'Lose Yourself',
-    artist: 'Eminem',
-    preview: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
-    album: '8 Mile',
-    cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop'
-  },
-  {
-    id: '2',
-    title: 'Bohemian Rhapsody',
-    artist: 'Queen',
-    preview: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
-    album: 'A Night at the Opera',
-    cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop'
-  }
-];
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, {
@@ -140,17 +122,31 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     dispatch({ type: 'SET_CONNECTED', payload: false });
   };
 
-  const startGame = () => {
+  const startGame = async () => {
     if (state.room && state.currentPlayer?.isHost) {
-      dispatch({ 
-        type: 'UPDATE_ROOM', 
-        payload: { 
-          gameState: 'playing',
-          currentSong: mockSongs[0],
-          currentSongIndex: 0,
-          timeLeft: 30
-        } 
-      });
+      const selectedPlaylist = allPlaylists[state.room.category as keyof typeof allPlaylists];
+      if (!selectedPlaylist || selectedPlaylist.length === 0) {
+        console.error("Selected playlist is empty or not found.");
+        return;
+      }
+
+      const randomSong = selectedPlaylist[Math.floor(Math.random() * selectedPlaylist.length)];
+      const deezerSong = await searchDeezer(randomSong.title, randomSong.artist);
+
+      if (deezerSong) {
+        dispatch({ 
+          type: 'UPDATE_ROOM', 
+          payload: { 
+            gameState: 'playing',
+            currentSong: deezerSong,
+            currentSongIndex: 0,
+            timeLeft: 30
+          } 
+        });
+      } else {
+        console.error("Could not find song on Deezer:", randomSong);
+        // Fallback or error handling if song not found on Deezer
+      }
     }
   };
 
@@ -202,18 +198,32 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const restartGame = () => {
+  const restartGame = async () => {
     if (state.room && state.currentPlayer?.isHost) {
-      dispatch({ 
-        type: 'UPDATE_ROOM', 
-        payload: { 
-          gameState: 'playing',
-          currentSongIndex: 0,
-          timeLeft: 30,
-          answers: {},
-          currentSong: mockSongs[0]
-        } 
-      });
+      const selectedPlaylist = allPlaylists[state.room.category as keyof typeof allPlaylists];
+      if (!selectedPlaylist || selectedPlaylist.length === 0) {
+        console.error("Selected playlist is empty or not found.");
+        return;
+      }
+
+      const randomSong = selectedPlaylist[Math.floor(Math.random() * selectedPlaylist.length)];
+      const deezerSong = await searchDeezer(randomSong.title, randomSong.artist);
+
+      if (deezerSong) {
+        dispatch({ 
+          type: 'UPDATE_ROOM', 
+          payload: { 
+            gameState: 'playing',
+            currentSongIndex: 0,
+            timeLeft: 30,
+            answers: {},
+            currentSong: deezerSong
+          } 
+        });
+      } else {
+        console.error("Could not find song on Deezer:", randomSong);
+        // Fallback or error handling if song not found on Deezer
+      }
     }
   };
 
@@ -264,13 +274,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
       } else {
         // Next song
-        dispatch({
-          type: 'UPDATE_ROOM',
-          payload: {
-            currentSongIndex: nextIndex,
-            currentSong: mockSongs[nextIndex % mockSongs.length],
-            timeLeft: 30,
-            answers: {}
+        const selectedPlaylist = allPlaylists[state.room.category as keyof typeof allPlaylists];
+        const randomSong = selectedPlaylist[Math.floor(Math.random() * selectedPlaylist.length)];
+        searchDeezer(randomSong.title, randomSong.artist).then(deezerSong => {
+          if (deezerSong) {
+            dispatch({
+              type: 'UPDATE_ROOM',
+              payload: {
+                currentSongIndex: nextIndex,
+                currentSong: deezerSong,
+                timeLeft: 30,
+                answers: {}
+              }
+            });
+          } else {
+            console.error("Could not find song on Deezer for next song:", randomSong);
+            // Fallback or error handling if song not found on Deezer
           }
         });
       }

@@ -50,29 +50,21 @@ export type GameState =
   | 'revealing' 
   | 'finished';
 
-export type MusicCategory = 
-  | 'random'
-  | 'france-90s'
-  | 'france-2000s'
-  | 'france-2010s'
-  | 'hits-90s'
-  | 'hits-2000s'
-  | 'hits-2010s'
-  | 'rock'
-  | 'pop'
-  | 'hip-hop';
+export type MusicCategory =
+  | 'musique-aujourdhui'
+  | 'annee-2000'
+  | 'annee-1990'
+  | 'film-series'
+  | 'anime'
+  | 'jeux-videos';
 
 export const MUSIC_CATEGORIES: Record<MusicCategory, string> = {
-  'random': 'Aléatoire',
-  'france-90s': 'France 90s',
-  'france-2000s': 'France 2000s',
-  'france-2010s': 'France 2010s',
-  'hits-90s': 'Hits 90s',
-  'hits-2000s': 'Hits 2000s',
-  'hits-2010s': 'Hits 2010s',
-  'rock': 'Rock',
-  'pop': 'Pop',
-  'hip-hop': 'Hip-Hop'
+  'musique-aujourdhui': 'Musique d\'aujourd\'hui',
+  'annee-2000': 'Années 2000',
+  'annee-1990': 'Années 1990',
+  'film-series': 'Films & Séries',
+  'anime': 'Anime',
+  'jeux-videos': 'Jeux Vidéos',
 };
 
 export const SCORING = {
