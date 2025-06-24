@@ -13,37 +13,75 @@ const GamePage: React.FC = () => {
   const [artistGuess, setArtistGuess] = useState('');
   const [titleGuess, setTitleGuess] = useState('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string | null>(null);
+  const playPromiseRef = useRef<Promise<void> | null>(null);
 
   const currentAnswer = room?.currentPlayer && room.answers[currentPlayer?.id || ''];
   const timeProgress = room ? ((30 - room.timeLeft) / 30) * 100 : 0;
 
   useEffect(() => {
-    const currentSongPreview = room?.currentSong?.preview;
-
-    if (currentSongPreview) {
-      // Pause and clear previous audio if it exists
+    const newPreviewUrl = room?.currentSong?.preview || null;
+    
+    // Only update audio if the preview URL actually changed
+    if (newPreviewUrl !== currentPreviewUrl) {
+      setCurrentPreviewUrl(newPreviewUrl);
+      
+      // Clean up previous audio
+      const cleanup = async () => {
+        if (audioRef.current) {
+          // Wait for any pending play promise
+          if (playPromiseRef.current) {
+            try {
+              await playPromiseRef.current;
+            } catch {
+              // Ignore errors from interrupted plays
+            }
+          }
+          
+          audioRef.current.pause();
+          audioRef.current.src = '';
+          audioRef.current = null;
+          playPromiseRef.current = null;
+        }
+      };
+      
+      // Create new audio if we have a URL
+      const setupAudio = async () => {
+        await cleanup();
+        
+        if (newPreviewUrl) {
+          const audio = new Audio(newPreviewUrl);
+          audio.loop = true;
+          audioRef.current = audio;
+          
+          // Store the play promise
+          playPromiseRef.current = audio.play().catch((error) => {
+            if (error.name !== 'AbortError') {
+              console.error('Audio play error:', error);
+            }
+          });
+        }
+      };
+      
+      setupAudio();
+    }
+    
+    // Cleanup on unmount
+    return () => {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = '';
         audioRef.current = null;
       }
+      playPromiseRef.current = null;
+    };
+  }, [currentPreviewUrl, room?.currentSong?.preview]);
 
-      const audio = new Audio(currentSongPreview);
-      audio.loop = true;
-      audioRef.current = audio;
-      
-      // Start playing
-      audio.play().catch(console.error);
-
-      return () => {
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.src = '';
-          audioRef.current = null;
-        }
-      };
-    }
-  }, [room?.currentSong?.preview]);
+  // Clear guesses when song changes
+  useEffect(() => {
+    setArtistGuess('');
+    setTitleGuess('');
+  }, [room?.currentSongIndex]);
 
   const handleSubmitAnswer = () => {
     if (artistGuess.trim() || titleGuess.trim()) {
