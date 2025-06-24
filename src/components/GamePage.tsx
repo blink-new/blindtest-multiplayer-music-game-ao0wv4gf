@@ -18,7 +18,9 @@ const GamePage: React.FC = () => {
   const timeProgress = room ? ((30 - room.timeLeft) / 30) * 100 : 0;
 
   useEffect(() => {
-    if (room?.currentSong?.preview) {
+    const currentSongPreview = room?.currentSong?.preview;
+
+    if (currentSongPreview) {
       // Pause and clear previous audio if it exists
       if (audioRef.current) {
         audioRef.current.pause();
@@ -26,7 +28,7 @@ const GamePage: React.FC = () => {
         audioRef.current = null;
       }
 
-      const audio = new Audio(room.currentSong.preview);
+      const audio = new Audio(currentSongPreview);
       audio.loop = true;
       audioRef.current = audio;
       
@@ -41,7 +43,7 @@ const GamePage: React.FC = () => {
         }
       };
     }
-  }, [room?.currentSong]);
+  }, [room?.currentSong?.preview]);
 
   const handleSubmitAnswer = () => {
     if (artistGuess.trim() || titleGuess.trim()) {
