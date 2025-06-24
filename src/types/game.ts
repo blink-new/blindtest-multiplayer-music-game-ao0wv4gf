@@ -23,7 +23,7 @@ export interface Song {
   id: string;
   title: string;
   artist: string;
-  preview: string;
+  preview?: string;
   album?: string;
   cover?: string;
 }

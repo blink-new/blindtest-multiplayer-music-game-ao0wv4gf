@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { Room, Player, GameState, MusicCategory, Answer } from '../types/game';
-import { allPlaylists } from '../playlists';
-import { searchDeezer } from '../lib/deezer';
+import { Room, Player, GameState, MusicCategory, Song, Answer } from '../types/game';
+import { allPlaylists } from '../lib/playlists';
+
+const SUPABASE_FUNCTION_URL = "https://jkmguvycagmtqaxeehqu.supabase.co/functions/v1/deezer-search";
 
 interface GameContextType {
   room: Room | null;
@@ -124,29 +125,40 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const startGame = async () => {
     if (state.room && state.currentPlayer?.isHost) {
-      const selectedPlaylist = allPlaylists[state.room.category as keyof typeof allPlaylists];
-      if (!selectedPlaylist || selectedPlaylist.length === 0) {
-        console.error("Selected playlist is empty or not found.");
+      const selectedPlaylist = allPlaylists[state.room.category];
+      if (!selectedPlaylist) {
+        console.error(`Playlist not found for category: ${state.room.category}`);
         return;
       }
 
-      const randomSong = selectedPlaylist[Math.floor(Math.random() * selectedPlaylist.length)];
-      const deezerSong = await searchDeezer(randomSong.title, randomSong.artist);
+      const shuffledSongs = selectedPlaylist.sort(() => 0.5 - Math.random());
+      const songsToPlay = shuffledSongs.slice(0, state.room.totalSongs);
 
-      if (deezerSong) {
-        dispatch({ 
-          type: 'UPDATE_ROOM', 
-          payload: { 
-            gameState: 'playing',
-            currentSong: deezerSong,
-            currentSongIndex: 0,
-            timeLeft: 30
-          } 
-        });
-      } else {
-        console.error("Could not find song on Deezer:", randomSong);
-        // Fallback or error handling if song not found on Deezer
+      const fetchedSongs: Song[] = [];
+      for (const song of songsToPlay) {
+        const deezerSong = await searchDeezer(`${song.title} ${song.artist}`);
+        if (deezerSong) {
+          fetchedSongs.push(deezerSong);
+        } else {
+          console.warn(`Could not find song on Deezer: ${JSON.stringify(song)}`);
+        }
       }
+
+      if (fetchedSongs.length === 0) {
+        console.error("No songs could be fetched from Deezer. Cannot start game.");
+        return;
+      }
+
+      dispatch({ 
+        type: 'UPDATE_ROOM', 
+        payload: { 
+          gameState: 'playing',
+          currentSong: fetchedSongs[0],
+          currentSongIndex: 0,
+          timeLeft: 30,
+          songs: fetchedSongs // Store the fetched songs in the room
+        } 
+      });
     }
   };
 
@@ -200,30 +212,40 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const restartGame = async () => {
     if (state.room && state.currentPlayer?.isHost) {
-      const selectedPlaylist = allPlaylists[state.room.category as keyof typeof allPlaylists];
-      if (!selectedPlaylist || selectedPlaylist.length === 0) {
-        console.error("Selected playlist is empty or not found.");
+      const selectedPlaylist = allPlaylists[state.room.category];
+      if (!selectedPlaylist) {
+        console.error(`Playlist not found for category: ${state.room.category}`);
         return;
       }
 
-      const randomSong = selectedPlaylist[Math.floor(Math.random() * selectedPlaylist.length)];
-      const deezerSong = await searchDeezer(randomSong.title, randomSong.artist);
+      const shuffledSongs = selectedPlaylist.sort(() => 0.5 - Math.random());
+      const songsToPlay = shuffledSongs.slice(0, state.room.totalSongs);
 
-      if (deezerSong) {
-        dispatch({ 
-          type: 'UPDATE_ROOM', 
-          payload: { 
-            gameState: 'playing',
-            currentSongIndex: 0,
-            timeLeft: 30,
-            answers: {},
-            currentSong: deezerSong
-          } 
-        });
-      } else {
-        console.error("Could not find song on Deezer:", randomSong);
-        // Fallback or error handling if song not found on Deezer
+      const fetchedSongs: Song[] = [];
+      for (const song of songsToPlay) {
+        const deezerSong = await searchDeezer(`${song.title} ${song.artist}`);
+        if (deezerSong) {
+          fetchedSongs.push(deezerSong);
+        } else {
+          console.warn(`Could not find song on Deezer: ${JSON.stringify(song)}`);
+        }
       }
+
+      if (fetchedSongs.length === 0) {
+        console.error("No songs could be fetched from Deezer. Cannot restart game.");
+        return;
+      }
+
+      dispatch({ 
+        type: 'UPDATE_ROOM', 
+        payload: { 
+          gameState: 'playing',
+          currentSong: fetchedSongs[0],
+          currentSongIndex: 0,
+          timeLeft: 30,
+          songs: fetchedSongs // Store the fetched songs in the room
+        } 
+      });
     }
   };
 
@@ -246,21 +268,36 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    if (state.room?.gameState === 'playing' && state.room.timeLeft > 0) {
+    // Ensure state.room and state.room.songs are defined before accessing them
+    const currentRoom = state.room;
+    const currentSongs = currentRoom?.songs;
+
+    if (currentRoom?.gameState === 'playing' && currentRoom.timeLeft > 0) {
       interval = setInterval(() => {
         dispatch({
           type: 'UPDATE_ROOM',
-          payload: { timeLeft: Math.max(0, state.room!.timeLeft - 1) }
+          payload: { timeLeft: Math.max(0, currentRoom.timeLeft - 1) }
         });
       }, 1000);
-    } else if (state.room?.gameState === 'playing' && state.room.timeLeft === 0) {
+    } else if (currentRoom?.gameState === 'playing' && currentRoom.timeLeft === 0) {
       // Timer finished, move to next song or end game
-      const nextIndex = state.room.currentSongIndex + 1;
-      if (nextIndex >= state.room.totalSongs) {
+      const nextIndex = currentRoom.currentSongIndex + 1;
+      if (currentSongs && nextIndex < currentSongs.length) {
+        // Next song
+        dispatch({
+          type: 'UPDATE_ROOM',
+          payload: {
+            currentSongIndex: nextIndex,
+            currentSong: currentSongs[nextIndex],
+            timeLeft: 30,
+            answers: {}
+          }
+        });
+      } else {
         // Game finished
-        const finalPlayers = state.room.players.map(player => {
-          const totalScore = Object.values(state.room!.answers)
-            .filter((_, i) => Object.keys(state.room!.answers)[i] === player.id)
+        const finalPlayers = currentRoom.players.map(player => {
+          const totalScore = Object.values(currentRoom.answers)
+            .filter((_, i) => Object.keys(currentRoom.answers)[i] === player.id)
             .reduce((sum, answer) => sum + answer.points, 0);
           return { ...player, score: totalScore };
         });
@@ -272,33 +309,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             players: finalPlayers
           }
         });
-      } else {
-        // Next song
-        const selectedPlaylist = allPlaylists[state.room.category as keyof typeof allPlaylists];
-        const randomSong = selectedPlaylist[Math.floor(Math.random() * selectedPlaylist.length)];
-        searchDeezer(randomSong.title, randomSong.artist).then(deezerSong => {
-          if (deezerSong) {
-            dispatch({
-              type: 'UPDATE_ROOM',
-              payload: {
-                currentSongIndex: nextIndex,
-                currentSong: deezerSong,
-                timeLeft: 30,
-                answers: {}
-              }
-            });
-          } else {
-            console.error("Could not find song on Deezer for next song:", randomSong);
-            // Fallback or error handling if song not found on Deezer
-          }
-        });
       }
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [state.room?.gameState, state.room?.timeLeft, state.room?.currentSongIndex, state.room?.totalSongs]);
+  }, [state.room?.gameState, state.room?.timeLeft, state.room?.currentSongIndex, state.room?.totalSongs, state.room?.songs?.length]);
 
   return (
     <GameContext.Provider value={value}>
@@ -313,4 +330,32 @@ export const useGame = (): GameContextType => {
     throw new Error('useGame must be used within a GameProvider');
   }
   return context;
+};
+
+const searchDeezer = async (query: string): Promise<Song | null> => {
+  try {
+    const response = await fetch(`${SUPABASE_FUNCTION_URL}?query=${encodeURIComponent(query)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+
+    if (data.data && data.data.length > 0) {
+      const track = data.data[0];
+      return {
+        id: track.id.toString(),
+        title: track.title,
+        artist: track.artist.name,
+        preview: track.preview,
+        album: track.album.title,
+        cover: track.album.cover_medium,
+      };
+    } else {
+      console.warn(`No results found for query: ${query}`);
+      return null;
+    }
+  } catch (error) {
+    console.error("Error searching Deezer:", error);
+    return null;
+  }
 };

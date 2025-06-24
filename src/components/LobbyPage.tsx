@@ -7,6 +7,7 @@ import { Badge } from './ui/badge';
 import { Crown, Users, Play, Copy, LogOut, Music } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { MUSIC_CATEGORIES, MusicCategory } from '../types/game';
+import { playlistCategories } from '../lib/playlists';
 import toast from 'react-hot-toast';
 
 const LobbyPage: React.FC = () => {
@@ -159,9 +160,9 @@ const LobbyPage: React.FC = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-900 border-gray-700">
-                    {Object.entries(MUSIC_CATEGORIES).map(([key, label]) => (
-                      <SelectItem key={key} value={key} className="text-white hover:bg-gray-800">
-                        {label}
+                    {playlistCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id} className="text-white hover:bg-gray-800">
+                        {category.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
