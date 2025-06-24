@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -12,23 +12,33 @@ const GamePage: React.FC = () => {
   const { room, currentPlayer, submitAnswer } = useGame();
   const [artistGuess, setArtistGuess] = useState('');
   const [titleGuess, setTitleGuess] = useState('');
-  const [, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const currentAnswer = room?.currentPlayer && room.answers[currentPlayer?.id || ''];
   const timeProgress = room ? ((30 - room.timeLeft) / 30) * 100 : 0;
 
   useEffect(() => {
     if (room?.currentSong?.preview) {
+      // Pause and clear previous audio if it exists
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+
       const audio = new Audio(room.currentSong.preview);
       audio.loop = true;
-      setAudioElement(audio);
+      audioRef.current = audio;
       
       // Start playing
       audio.play().catch(console.error);
 
       return () => {
-        audio.pause();
-        audio.src = '';
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = '';
+          audioRef.current = null;
+        }
       };
     }
   }, [room?.currentSong]);
